@@ -8,7 +8,7 @@ export default defineConfig({
   initialState: {},
   request: {},
   layout: {
-    title: 'ROI数据分析',
+    title: '数据分析',
     menuRender: false, // 全局隐藏左侧侧边栏
     menuHeaderRender: false, // 可选：隐藏侧边栏顶部logo
     // headerRender: false, // 可选：同时隐藏顶部导航
