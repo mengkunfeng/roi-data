@@ -53,6 +53,7 @@ export default () => {
       
       // 计算7日移动平均值并设置到 averageData
       const sortedData = [...originalData].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
       let averageData = sortedData.map((currentItem, index) => {
         // 计算窗口范围：当前项向前6项（共7项）
         const startIndex = Math.max(0, index - 6);
@@ -64,12 +65,16 @@ export default () => {
             if (key.startsWith('roi') && !isNaN(Number(item[key]))) {
               acc[key] = ((acc[key] || 0) + Number(item[key]))/2;
             }
-            if(index === windowData.length - 1){
-              acc[key] = item[key] ? acc[key] : item[key];
+            if (index === windowData.length - 1) {
+              if (key.startsWith('roi')) {
+                acc[key] = item[key] ? acc[key] : item[key];
+              }
             }
           });
           return acc;
         }, {} as Record<string, number>);
+
+        console.log(currentItem,averages);
         
         // 计算平均值
         const averageItem = { ...currentItem , ...averages};
@@ -105,6 +110,8 @@ export default () => {
 
     // 按日期排序
     let sortedData = [...roiData].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    console.log(averageData);
 
     if (displayMode === 'average') {
        sortedData = [...averageData].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
