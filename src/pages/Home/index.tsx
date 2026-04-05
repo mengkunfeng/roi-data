@@ -26,6 +26,8 @@ const lengendItem = SERIES.map((item) => item.dataKey);
 export default () => {
   // 状态管理
   const [roiData, setRoiData] = useState<ROIItem[]>([]);
+
+  const [averageData, setAverageData] = useState<ROIItem[]>([]);
   const [channel, setChannel] = useState('Apple');
   const [bidType, setBidType] = useState('CPI');
   const [country, setCountry] = useState('美国');
@@ -46,7 +48,35 @@ export default () => {
   // 获取ROI数据
   function getROIData({ country, app }: { country?: string, app?: string }) {
     getROIDataAPI({ country, app }).then(res => {
-      setRoiData(res.data?.data || []);
+      const originalData = res.data?.data || [];
+      setRoiData(originalData);
+      
+      // 计算7日移动平均值并设置到 averageData
+      const sortedData = [...originalData].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      let averageData = sortedData.map((currentItem, index) => {
+        // 计算窗口范围：当前项向前6项（共7项）
+        const startIndex = Math.max(0, index - 6);
+        const windowData = sortedData.slice(startIndex, index + 1);
+        
+        // 计算每个ROI指标的平均值
+        const averages = windowData.reduce((acc, item,index) => {
+          Object.keys(item).forEach(key => {
+            if (key.startsWith('roi') && !isNaN(Number(item[key]))) {
+              acc[key] = ((acc[key] || 0) + Number(item[key]))/2;
+            }
+            if(index === windowData.length - 1){
+              acc[key] = item[key] ? acc[key] : item[key];
+            }
+          });
+          return acc;
+        }, {} as Record<string, number>);
+        
+        // 计算平均值
+        const averageItem = { ...currentItem , ...averages};
+        return averageItem;
+      });
+      
+      setAverageData(averageData);
     });
   }
 
@@ -74,11 +104,28 @@ export default () => {
     }
 
     // 按日期排序
-    const sortedData = [...roiData].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    let sortedData = [...roiData].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    if (displayMode === 'average') {
+       sortedData = [...averageData].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }
     
     // 组合图表数据，将字符串转换为数字
-    const data = sortedData.map(item => {
-      const roi90 = parseFloat(item.roi90 as any) || 0;
+    const data = sortedData.map((item, index) => {
+      // 计算前7天roi90的平均值作为预测值
+      const startIndex = Math.max(0, index - 6);
+      const windowData = sortedData.slice(startIndex, index + 1);
+
+      let count = 0
+      let roi0Average = windowData.reduce((sum, windowItem) => {
+        if (windowItem.roi0) {
+          count++
+          return sum + (parseFloat(windowItem.roi0 as any) || 0);
+        }
+        return sum;
+      }, 0);
+      roi0Average = roi0Average / count;
+      
       const baseData = {
         date: dayjs(item.date).format('YYYY-MM-DD'),
         '当日(7日均值)': formatNum(item.roi0),
@@ -89,7 +136,7 @@ export default () => {
         '30日(7日均值)': formatNum(item.roi30),
         '60日(7日均值)': formatNum(item.roi60),
         '90日(7日均值)': formatNum(item.roi90),
-        '预测值': formatNum(roi90 * 1.05)
+        '预测值': formatNum(roi0Average)
       };
 
       // 处理对数刻度的0值问题
@@ -130,8 +177,6 @@ export default () => {
   // Legend 可点击：切换对应 Line 的显示/隐藏
   const renderClickableLegend = (props: any) => {
     const { payload } = props;
-    console.log('11', payload);
-    
     if (!payload || !payload.length) return null;
     payload.sort((a: any, b: any) => {
       const indexA = lengendItem.indexOf(a.dataKey ?? a.value);
